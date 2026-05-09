@@ -7,10 +7,12 @@ import DailyPage from "./pages/DailyPage";
 import BankPage from "./pages/BankPage";
 import ScorePage from "./pages/ScorePage";
 import RekapPage from "./pages/RekapPage";
+import AdminPage from "./pages/AdminPage";
+import TelcoLogo from "./components/TelcoLogo";
 import { S } from "./styles";
 
 export default function App() {
-  const [user, setUser] = useState(undefined); // undefined = loading
+  const [user, setUser] = useState(undefined);
   const [page, setPage] = useState("daily");
 
   useEffect(() => {
@@ -18,7 +20,6 @@ export default function App() {
     return unsub;
   }, []);
 
-  // Loading state
   if (user === undefined) return (
     <div style={{ background: "#0f172a", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ color: "#f59e0b", fontFamily: "monospace", fontSize: 18 }}>Memuat…</div>
@@ -33,22 +34,29 @@ export default function App() {
     { key: "daily", label: "📅 Soal Harian" },
     { key: "bank", label: "📚 Bank Soal" },
     { key: "score", label: "📊 Skor Saya" },
-    ...(admin ? [{ key: "rekap", label: "📋 Rekap Admin" }] : []),
+    ...(admin ? [
+      { key: "rekap", label: "📋 Rekap Admin" },
+      { key: "admin", label: "⚙️ Kelola Soal" },
+    ] : []),
   ];
 
   return (
     <div style={S.appBg}>
+      <style>{`* { box-sizing: border-box; } body { margin: 0; }`}</style>
+
       {/* SIDEBAR */}
       <div style={S.sidebar}>
-        <div style={S.sidebarLogo}>
-          <div style={{ fontSize: 30 }}>🛡️</div>
-          <div>
-            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 19, color: "#f59e0b", letterSpacing: 2 }}>BANK SOAL</div>
-            <div style={{ fontSize: 10, color: "#475569" }}>Safety & Teknis</div>
+        <div style={{ padding: "0 16px 20px", borderBottom: "1px solid #1e293b", marginBottom: 16 }}>
+          <TelcoLogo size={150} />
+          <div style={{
+            fontFamily: "'Bebas Neue'", fontSize: 20, color: "#fff",
+            letterSpacing: 4, marginTop: 8, lineHeight: 1
+          }}>ROSOT</div>
+          <div style={{ fontSize: 9, color: "#cc2020", letterSpacing: 1, marginTop: 3, fontWeight: 600 }}>
+            Refreshment One Safety One Technical
           </div>
         </div>
 
-        {/* User info */}
         <div style={S.userBadge}>
           {user.photoURL
             ? <img src={user.photoURL} alt="" style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0 }} />
@@ -64,7 +72,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Nav */}
         <nav style={{ flex: 1 }}>
           {navItems.map(n => (
             <button key={n.key} onClick={() => setPage(n.key)}
@@ -88,6 +95,7 @@ export default function App() {
         {page === "bank" && <BankPage />}
         {page === "score" && <ScorePage user={user} />}
         {page === "rekap" && admin && <RekapPage />}
+        {page === "admin" && admin && <AdminPage />}
       </div>
     </div>
   );
