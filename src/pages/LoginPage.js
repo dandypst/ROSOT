@@ -2,6 +2,7 @@ import { useState } from "react";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../firebase";
 import { S } from "../styles";
+import TelcoLogo from "../components/TelcoLogo";
 
 export default function LoginPage() {
   const [error, setError] = useState("");
@@ -21,20 +22,36 @@ export default function LoginPage() {
   return (
     <div style={S.loginBg}>
       <div style={S.loginCard}>
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ fontSize: 52, marginBottom: 12 }}>🛡️</div>
-          <div style={{ fontFamily: "'Bebas Neue'", fontSize: 32, color: "#f59e0b", letterSpacing: 3 }}>BANK SOAL</div>
-          <div style={{ color: "#475569", fontSize: 13, letterSpacing: 1, marginTop: 4 }}>Safety & Teknis Harian</div>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          {/* TELCO Logo */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+            <TelcoLogo size={180} />
+          </div>
+          {/* ROSOT title */}
+          <div style={{
+            fontFamily: "'Bebas Neue'", fontSize: 38,
+            color: "#fff", letterSpacing: 5, lineHeight: 1.1
+          }}>ROSOT</div>
+          {/* Subtitle */}
+          <div style={{
+            color: "#cc2020", fontSize: 11, letterSpacing: 1.5,
+            marginTop: 6, fontWeight: 600, textTransform: "uppercase"
+          }}>
+            Refreshment One Safety One Technical
+          </div>
         </div>
 
-        <div style={{ background: "#0c1526", border: "1px solid #1e293b", borderRadius: 10, padding: "16px 20px", marginBottom: 24 }}>
+        <div style={{
+          background: "#0c1526", border: "1px solid #1e293b",
+          borderRadius: 10, padding: "14px 18px", marginBottom: 22
+        }}>
           <p style={{ color: "#64748b", fontSize: 13, lineHeight: 1.6, margin: 0 }}>
             Website ini hanya untuk personel yang berwenang. Silakan login menggunakan akun Google yang telah didaftarkan oleh admin.
           </p>
         </div>
 
         {error && (
-          <div style={{ color: "#f87171", fontSize: 13, marginBottom: 16, padding: "10px 14px", background: "#7f1d1d22", borderRadius: 8 }}>
+          <div style={{ color: "#f87171", fontSize: 13, marginBottom: 14, padding: "10px 14px", background: "#7f1d1d22", borderRadius: 8 }}>
             {error}
           </div>
         )}
@@ -45,7 +62,8 @@ export default function LoginPage() {
           style={{
             width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
             background: loading ? "#1e293b" : "#fff", color: "#1e293b", border: "none", borderRadius: 10,
-            padding: "14px", fontWeight: 700, fontSize: 15, cursor: loading ? "not-allowed" : "pointer",
+            padding: "14px", fontWeight: 700, fontSize: 15,
+            cursor: loading ? "not-allowed" : "pointer",
             fontFamily: "inherit", transition: "all .2s"
           }}
         >
@@ -58,7 +76,7 @@ export default function LoginPage() {
           {loading ? "Memuat..." : "Masuk dengan Google"}
         </button>
 
-        <p style={{ color: "#1e293b", fontSize: 12, textAlign: "center", marginTop: 20 }}>
+        <p style={{ color: "#334155", fontSize: 12, textAlign: "center", marginTop: 18 }}>
           Hubungi admin jika akun kamu belum terdaftar.
         </p>
       </div>
