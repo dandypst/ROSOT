@@ -1,15 +1,34 @@
 export const todayStr = () => new Date().toISOString().split("T")[0];
 
-export const getDailyQuestions = (questions) => {
-  const start = new Date("2024-01-01");
-  const day = Math.floor((new Date() - start) / 86400000);
-  const safety = questions.filter(q => q.type === "safety");
-  const teknis = questions.filter(q => q.type === "teknis");
+/**
+ * Get daily questions for a specific user — random but seeded by userId + date.
+ * Same user always gets the same soal on the same day.
+ * Different users get different soal on the same day.
+ */
+export function getDailyQuestionsForUser(questions, userId) {
+  const safetyQs = questions.filter(q => q.type === "safety");
+  const teknisQs = questions.filter(q => q.type === "teknis");
+  if (!safetyQs.length || !teknisQs.length) return { safety: null, teknis: null };
+
+  const seed = hashCode(`${userId}_${todayStr()}`);
+  const si = Math.abs(seed) % safetyQs.length;
+  const ti = Math.abs(seed * 31) % teknisQs.length;
+
   return {
-    safety: safety[day % safety.length],
-    teknis: teknis[day % teknis.length],
+    safety: { ...safetyQs[si], id: safetyQs[si].firestoreId },
+    teknis: { ...teknisQs[ti], id: teknisQs[ti].firestoreId },
   };
-};
+}
+
+/** Simple deterministic hash — same string always same number */
+function hashCode(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}
 
 export const isAdmin = (user) => {
   if (!user) return false;
@@ -17,11 +36,13 @@ export const isAdmin = (user) => {
   return adminEmails.includes(user.email);
 };
 
-export const exportToExcel = (data, filename) => {
-  import("xlsx").then(XLSX => {
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Data");
-    XLSX.writeFile(wb, filename);
-  });
+export const exportCSV = (data, filename) => {
+  if (!data.length) return;
+  const headers = Object.keys(data[0]);
+  const rows = data.map(row => headers.map(h => `"${(row[h] || "").toString().replace(/"/g, '""')}"`).join(","));
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
 };
