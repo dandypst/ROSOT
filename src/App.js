@@ -11,25 +11,32 @@ import BankPage from "./pages/BankPage";
 import ScorePage from "./pages/ScorePage";
 import RekapPage from "./pages/RekapPage";
 import AdminPage from "./pages/AdminPage";
+import UsersPage from "./pages/UsersPage";
 import TelcoLogo from "./components/TelcoLogo";
 import { S } from "./styles";
 
 export default function App() {
-  const [user, setUser] = useState(undefined);
-  const [profile, setProfile] = useState(null);   // null = belum load, false = belum isi
-  const [page, setPage] = useState("daily");
+  const [user, setUser]           = useState(undefined);
+  const [profile, setProfile]     = useState(null);
+  const [blocked, setBlocked]     = useState(false);
+  const [page, setPage]           = useState("daily");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
-      if (!u) { setUser(null); setProfile(null); return; }
+      if (!u) { setUser(null); setProfile(null); setBlocked(false); return; }
       setUser(u);
-      // Load profile from Firestore
+
+      // Cek apakah user diblokir
+      const blockedSnap = await getDoc(doc(db, "blocked_users", u.uid));
+      if (blockedSnap.exists()) { setBlocked(true); return; }
+
+      // Load profil
       const snap = await getDoc(doc(db, "users", u.uid));
       if (snap.exists() && snap.data().nama && snap.data().upt) {
         setProfile(snap.data());
       } else {
-        setProfile(false); // belum lengkap, tampilkan form
+        setProfile(false);
       }
     });
     return unsub;
@@ -38,7 +45,7 @@ export default function App() {
   const goTo = (p) => { setPage(p); setSidebarOpen(false); };
 
   // ── Loading ──
-  if (user === undefined || (user && profile === null)) return (
+  if (user === undefined || (user && profile === null && !blocked)) return (
     <div style={{ background: "#0f172a", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ color: "#f59e0b", fontFamily: "monospace", fontSize: 18 }}>Memuat…</div>
     </div>
@@ -47,7 +54,42 @@ export default function App() {
   // ── Belum login ──
   if (!user) return <LoginPage />;
 
-  // ── Sudah login tapi belum isi profil ──
+  // ── User diblokir ──
+  if (blocked) return (
+    <div style={{
+      minHeight: "100vh", background: "#0f172a",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontFamily: "'DM Sans', sans-serif", padding: 20
+    }}>
+      <div style={{
+        background: "#0f172a", border: "1px solid #7f1d1d",
+        borderRadius: 16, padding: "40px 36px",
+        maxWidth: 400, width: "100%", textAlign: "center"
+      }}>
+        <div style={{ fontSize: 52, marginBottom: 16 }}>🚫</div>
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 28, color: "#ef4444", letterSpacing: 2, marginBottom: 10 }}>
+          Akses Ditolak
+        </div>
+        <div style={{ color: "#94a3b8", fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
+          Akun kamu telah dinonaktifkan oleh admin.<br />
+          Hubungi admin untuk informasi lebih lanjut.
+        </div>
+        <button
+          onClick={() => signOut(auth)}
+          style={{
+            background: "#1e293b", color: "#94a3b8",
+            border: "1px solid #334155", borderRadius: 8,
+            padding: "11px 24px", fontSize: 14,
+            cursor: "pointer", fontFamily: "inherit"
+          }}
+        >
+          ⏏ Keluar
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Belum isi profil ──
   if (profile === false) return (
     <ProfileSetupPage
       user={user}
@@ -57,23 +99,21 @@ export default function App() {
 
   const admin = isAdmin(user);
 
-  // User: hanya Soal Harian + Profil
-  // Admin: semua menu
   const navItems = admin ? [
-    { key: "daily",   label: "📅 Soal Harian" },
-    { key: "bank",    label: "📚 Bank Soal" },
-    { key: "score",   label: "📊 Skor Saya" },
-    { key: "rekap",   label: "📋 Rekap Admin" },
-    { key: "admin",   label: "⚙️ Kelola Soal" },
-    { key: "profil",  label: "👤 Profil Saya" },
+    { key: "daily",  label: "📅 Soal Harian" },
+    { key: "bank",   label: "📚 Bank Soal" },
+    { key: "score",  label: "📊 Skor Saya" },
+    { key: "rekap",  label: "📋 Rekap Admin" },
+    { key: "admin",  label: "⚙️ Kelola Soal" },
+    { key: "users",  label: "🛡️ Manajemen User" },
+    { key: "profil", label: "👤 Profil Saya" },
   ] : [
-    { key: "daily",   label: "📅 Soal Harian" },
-    { key: "profil",  label: "👤 Profil Saya" },
+    { key: "daily",  label: "📅 Soal Harian" },
+    { key: "profil", label: "👤 Profil Saya" },
   ];
 
   const sidebarContent = (
     <>
-      {/* Logo */}
       <div style={{ padding: "0 16px 16px", borderBottom: "1px solid #1e293b", marginBottom: 14 }}>
         <TelcoLogo size={150} />
         <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, color: "#fff", letterSpacing: 4, marginTop: 6, lineHeight: 1 }}>ROSOT</div>
@@ -82,7 +122,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* User badge — tampilkan nama dari form */}
       <div style={S.userBadge}>
         {user.photoURL
           ? <img src={user.photoURL} alt="" style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0 }} />
@@ -95,12 +134,11 @@ export default function App() {
             {profile?.nama}
           </div>
           <div style={{ color: "#475569", fontSize: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {admin ? "👑 Admin" : "👤"} {profile?.upt}
+            {admin ? "👑 Admin · " : ""}{profile?.upt}
           </div>
         </div>
       </div>
 
-      {/* Nav */}
       <nav style={{ flex: 1 }}>
         {navItems.map(n => (
           <button key={n.key} onClick={() => goTo(n.key)}
@@ -122,52 +160,24 @@ export default function App() {
   return (
     <div style={S.appBg}>
       <style>{`
-        * { box-sizing: border-box; }
-        body { margin: 0; }
-        .topbar {
-          display: none;
-          position: fixed; top: 0; left: 0; right: 0;
-          height: 52px; background: #080e1a;
-          border-bottom: 1px solid #1e293b;
-          align-items: center; padding: 0 16px; gap: 12px; z-index: 100;
-        }
-        .hamburger {
-          background: none; border: none; color: #e2e8f0;
-          font-size: 22px; cursor: pointer; padding: 4px 8px;
-          border-radius: 6px; line-height: 1; font-family: inherit;
-        }
-        .hamburger:hover { background: #1e293b; }
-        .overlay {
-          display: none; position: fixed; inset: 0;
-          background: rgba(0,0,0,0.6); z-index: 150;
-        }
-        .sidebar-desktop {
-          width: 230px; background: #080e1a;
-          border-right: 1px solid #1e293b;
-          display: flex; flex-direction: column;
-          padding: 24px 0 0; position: sticky;
-          top: 0; height: 100vh; flex-shrink: 0;
-        }
-        .sidebar-mobile {
-          display: none; position: fixed;
-          top: 0; left: 0; width: 240px; height: 100vh;
-          background: #080e1a; border-right: 1px solid #1e293b;
-          flex-direction: column; padding: 24px 0 0;
-          z-index: 200; transform: translateX(-100%);
-          transition: transform 0.25s ease;
-        }
-        .sidebar-mobile.open { transform: translateX(0); }
-        .main-content { flex: 1; overflow-y: auto; padding: 32px 28px; }
-        @media (max-width: 768px) {
-          .topbar { display: flex !important; }
-          .sidebar-desktop { display: none !important; }
-          .sidebar-mobile { display: flex !important; }
-          .overlay.open { display: block !important; }
-          .main-content { padding: 72px 16px 24px; }
+        * { box-sizing: border-box; } body { margin: 0; }
+        .topbar { display:none; position:fixed; top:0; left:0; right:0; height:52px; background:#080e1a; border-bottom:1px solid #1e293b; align-items:center; padding:0 16px; gap:12px; z-index:100; }
+        .hamburger { background:none; border:none; color:#e2e8f0; font-size:22px; cursor:pointer; padding:4px 8px; border-radius:6px; line-height:1; font-family:inherit; }
+        .hamburger:hover { background:#1e293b; }
+        .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:150; }
+        .sidebar-desktop { width:230px; background:#080e1a; border-right:1px solid #1e293b; display:flex; flex-direction:column; padding:24px 0 0; position:sticky; top:0; height:100vh; flex-shrink:0; }
+        .sidebar-mobile { display:none; position:fixed; top:0; left:0; width:240px; height:100vh; background:#080e1a; border-right:1px solid #1e293b; flex-direction:column; padding:24px 0 0; z-index:200; transform:translateX(-100%); transition:transform 0.25s ease; overflow-y:auto; }
+        .sidebar-mobile.open { transform:translateX(0); }
+        .main-content { flex:1; overflow-y:auto; padding:32px 28px; }
+        @media (max-width:768px) {
+          .topbar { display:flex !important; }
+          .sidebar-desktop { display:none !important; }
+          .sidebar-mobile { display:flex !important; }
+          .overlay.open { display:block !important; }
+          .main-content { padding:72px 16px 24px; }
         }
       `}</style>
 
-      {/* Mobile topbar */}
       <div className="topbar">
         <button className="hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
           {sidebarOpen ? "✕" : "☰"}
@@ -176,22 +186,17 @@ export default function App() {
         <div style={{ fontFamily: "'Bebas Neue'", fontSize: 16, color: "#fff", letterSpacing: 3 }}>ROSOT</div>
       </div>
 
-      {/* Overlay */}
       <div className={`overlay ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebarOpen(false)} />
-
-      {/* Desktop sidebar */}
       <div className="sidebar-desktop">{sidebarContent}</div>
-
-      {/* Mobile sidebar */}
       <div className={`sidebar-mobile ${sidebarOpen ? "open" : ""}`}>{sidebarContent}</div>
 
-      {/* Main */}
       <div className="main-content">
         {page === "daily"  && <DailyPage user={user} profile={profile} />}
         {page === "bank"   && admin && <BankPage />}
         {page === "score"  && admin && <ScorePage user={user} />}
         {page === "rekap"  && admin && <RekapPage />}
         {page === "admin"  && admin && <AdminPage />}
+        {page === "users"  && admin && <UsersPage />}
         {page === "profil" && (
           <ProfileEditPage
             user={user}
