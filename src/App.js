@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { auth } from "./firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "./firebase";
 import { isAdmin } from "./utils/helpers";
 import LoginPage from "./pages/LoginPage";
+import ProfileSetupPage from "./pages/ProfileSetupPage";
+import ProfileEditPage from "./pages/ProfileEditPage";
 import DailyPage from "./pages/DailyPage";
 import BankPage from "./pages/BankPage";
 import ScorePage from "./pages/ScorePage";
@@ -13,40 +16,59 @@ import { S } from "./styles";
 
 export default function App() {
   const [user, setUser] = useState(undefined);
+  const [profile, setProfile] = useState(null);   // null = belum load, false = belum isi
   const [page, setPage] = useState("daily");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, u => setUser(u || null));
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!u) { setUser(null); setProfile(null); return; }
+      setUser(u);
+      // Load profile from Firestore
+      const snap = await getDoc(doc(db, "users", u.uid));
+      if (snap.exists() && snap.data().nama && snap.data().upt) {
+        setProfile(snap.data());
+      } else {
+        setProfile(false); // belum lengkap, tampilkan form
+      }
+    });
     return unsub;
   }, []);
 
-  // Close sidebar when page changes on mobile
-  const goTo = (p) => {
-    setPage(p);
-    setSidebarOpen(false);
-  };
+  const goTo = (p) => { setPage(p); setSidebarOpen(false); };
 
-  if (user === undefined) return (
+  // ── Loading ──
+  if (user === undefined || (user && profile === null)) return (
     <div style={{ background: "#0f172a", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ color: "#f59e0b", fontFamily: "monospace", fontSize: 18 }}>Memuat…</div>
     </div>
   );
 
+  // ── Belum login ──
   if (!user) return <LoginPage />;
+
+  // ── Sudah login tapi belum isi profil ──
+  if (profile === false) return (
+    <ProfileSetupPage
+      user={user}
+      onComplete={(p) => setProfile({ ...p, email: user.email, uid: user.uid })}
+    />
+  );
 
   const admin = isAdmin(user);
 
-  // User hanya dapat Soal Harian
-  // Admin dapat semua menu
+  // User: hanya Soal Harian + Profil
+  // Admin: semua menu
   const navItems = admin ? [
-    { key: "daily",  label: "📅 Soal Harian" },
-    { key: "bank",   label: "📚 Bank Soal" },
-    { key: "score",  label: "📊 Skor Saya" },
-    { key: "rekap",  label: "📋 Rekap Admin" },
-    { key: "admin",  label: "⚙️ Kelola Soal" },
+    { key: "daily",   label: "📅 Soal Harian" },
+    { key: "bank",    label: "📚 Bank Soal" },
+    { key: "score",   label: "📊 Skor Saya" },
+    { key: "rekap",   label: "📋 Rekap Admin" },
+    { key: "admin",   label: "⚙️ Kelola Soal" },
+    { key: "profil",  label: "👤 Profil Saya" },
   ] : [
-    { key: "daily",  label: "📅 Soal Harian" },
+    { key: "daily",   label: "📅 Soal Harian" },
+    { key: "profil",  label: "👤 Profil Saya" },
   ];
 
   const sidebarContent = (
@@ -60,19 +82,21 @@ export default function App() {
         </div>
       </div>
 
-      {/* User badge */}
+      {/* User badge — tampilkan nama dari form */}
       <div style={S.userBadge}>
         {user.photoURL
           ? <img src={user.photoURL} alt="" style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0 }} />
           : <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#f59e0b", color: "#000", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-              {user.displayName?.[0]?.toUpperCase()}
+              {profile?.nama?.[0]?.toUpperCase()}
             </div>
         }
         <div style={{ overflow: "hidden" }}>
           <div style={{ color: "#e2e8f0", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {user.displayName}
+            {profile?.nama}
           </div>
-          <div style={{ color: "#475569", fontSize: 10 }}>{admin ? "👑 Admin" : "👤 User"}</div>
+          <div style={{ color: "#475569", fontSize: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {admin ? "👑 Admin" : "👤"} {profile?.upt}
+          </div>
         </div>
       </div>
 
@@ -91,7 +115,6 @@ export default function App() {
         ))}
       </nav>
 
-      {/* Logout */}
       <button style={S.logoutBtn} onClick={() => signOut(auth)}>⏏ Keluar</button>
     </>
   );
@@ -101,80 +124,40 @@ export default function App() {
       <style>{`
         * { box-sizing: border-box; }
         body { margin: 0; }
-
-        /* Mobile hamburger topbar */
         .topbar {
           display: none;
-          position: fixed;
-          top: 0; left: 0; right: 0;
-          height: 52px;
-          background: #080e1a;
+          position: fixed; top: 0; left: 0; right: 0;
+          height: 52px; background: #080e1a;
           border-bottom: 1px solid #1e293b;
-          align-items: center;
-          padding: 0 16px;
-          gap: 12px;
-          z-index: 100;
+          align-items: center; padding: 0 16px; gap: 12px; z-index: 100;
         }
         .hamburger {
-          background: none;
-          border: none;
-          color: #e2e8f0;
-          font-size: 22px;
-          cursor: pointer;
-          padding: 4px 6px;
-          border-radius: 6px;
-          line-height: 1;
+          background: none; border: none; color: #e2e8f0;
+          font-size: 22px; cursor: pointer; padding: 4px 8px;
+          border-radius: 6px; line-height: 1; font-family: inherit;
         }
         .hamburger:hover { background: #1e293b; }
-
-        /* Overlay when sidebar open on mobile */
         .overlay {
-          display: none;
-          position: fixed;
-          inset: 0;
-          background: rgba(0,0,0,0.6);
-          z-index: 150;
+          display: none; position: fixed; inset: 0;
+          background: rgba(0,0,0,0.6); z-index: 150;
         }
-
-        /* Desktop: sidebar always visible */
         .sidebar-desktop {
-          width: 230px;
-          background: #080e1a;
+          width: 230px; background: #080e1a;
           border-right: 1px solid #1e293b;
-          display: flex;
-          flex-direction: column;
-          padding: 24px 0 0;
-          position: sticky;
-          top: 0;
-          height: 100vh;
-          flex-shrink: 0;
+          display: flex; flex-direction: column;
+          padding: 24px 0 0; position: sticky;
+          top: 0; height: 100vh; flex-shrink: 0;
         }
-
-        /* Mobile sidebar: slide in from left */
         .sidebar-mobile {
-          display: none;
-          position: fixed;
-          top: 0; left: 0;
-          width: 240px;
-          height: 100vh;
-          background: #080e1a;
-          border-right: 1px solid #1e293b;
-          flex-direction: column;
-          padding: 24px 0 0;
-          z-index: 200;
-          transform: translateX(-100%);
+          display: none; position: fixed;
+          top: 0; left: 0; width: 240px; height: 100vh;
+          background: #080e1a; border-right: 1px solid #1e293b;
+          flex-direction: column; padding: 24px 0 0;
+          z-index: 200; transform: translateX(-100%);
           transition: transform 0.25s ease;
         }
-        .sidebar-mobile.open {
-          transform: translateX(0);
-        }
-
-        .main-content {
-          flex: 1;
-          overflow-y: auto;
-          padding: 32px 28px;
-        }
-
+        .sidebar-mobile.open { transform: translateX(0); }
+        .main-content { flex: 1; overflow-y: auto; padding: 32px 28px; }
         @media (max-width: 768px) {
           .topbar { display: flex !important; }
           .sidebar-desktop { display: none !important; }
@@ -184,40 +167,38 @@ export default function App() {
         }
       `}</style>
 
-      {/* ── Mobile top bar ── */}
+      {/* Mobile topbar */}
       <div className="topbar">
         <button className="hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
           {sidebarOpen ? "✕" : "☰"}
         </button>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <TelcoLogo size={80} />
-          <div style={{ fontFamily: "'Bebas Neue'", fontSize: 16, color: "#fff", letterSpacing: 3 }}>ROSOT</div>
-        </div>
+        <TelcoLogo size={80} />
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 16, color: "#fff", letterSpacing: 3 }}>ROSOT</div>
       </div>
 
-      {/* ── Overlay (mobile) ── */}
-      <div
-        className={`overlay ${sidebarOpen ? "open" : ""}`}
-        onClick={() => setSidebarOpen(false)}
-      />
+      {/* Overlay */}
+      <div className={`overlay ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebarOpen(false)} />
 
-      {/* ── Desktop sidebar ── */}
-      <div className="sidebar-desktop">
-        {sidebarContent}
-      </div>
+      {/* Desktop sidebar */}
+      <div className="sidebar-desktop">{sidebarContent}</div>
 
-      {/* ── Mobile sidebar ── */}
-      <div className={`sidebar-mobile ${sidebarOpen ? "open" : ""}`}>
-        {sidebarContent}
-      </div>
+      {/* Mobile sidebar */}
+      <div className={`sidebar-mobile ${sidebarOpen ? "open" : ""}`}>{sidebarContent}</div>
 
-      {/* ── Main content ── */}
+      {/* Main */}
       <div className="main-content">
-        {page === "daily" && <DailyPage user={user} />}
-        {page === "bank"  && admin && <BankPage />}
-        {page === "score" && admin && <ScorePage user={user} />}
-        {page === "rekap" && admin && <RekapPage />}
-        {page === "admin" && admin && <AdminPage />}
+        {page === "daily"  && <DailyPage user={user} profile={profile} />}
+        {page === "bank"   && admin && <BankPage />}
+        {page === "score"  && admin && <ScorePage user={user} />}
+        {page === "rekap"  && admin && <RekapPage />}
+        {page === "admin"  && admin && <AdminPage />}
+        {page === "profil" && (
+          <ProfileEditPage
+            user={user}
+            profile={profile}
+            onSave={(p) => setProfile(prev => ({ ...prev, ...p }))}
+          />
+        )}
       </div>
     </div>
   );
