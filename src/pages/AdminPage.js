@@ -15,7 +15,9 @@ export default function AdminPage() {
   const [filter, setFilter]         = useState("all");
   const [search, setSearch]         = useState("");
   const [preview, setPreview]       = useState(null);
-  const [editingType, setEditingType] = useState(null); // firestoreId yg sedang diedit kategori
+  const [editingType, setEditingType]     = useState(null);
+  const [editingAnswer, setEditingAnswer] = useState(null);
+  const [savingAnswer, setSavingAnswer]   = useState(null);
   const [savingType, setSavingType]   = useState(null); // firestoreId yg sedang disimpan
   const [toast, setToast]           = useState(null);
   const fileRef = useRef();
@@ -51,6 +53,23 @@ export default function AdminPage() {
       showToast("❌ Gagal: " + e.message, false);
     }
     setSavingType(null);
+  };
+
+
+  // ── Update jawaban benar ──────────────────────────────────────
+  const handleUpdateAnswer = async (firestoreId, newAnswer, options) => {
+    setSavingAnswer(firestoreId);
+    try {
+      await updateDoc(doc(db, "questions", firestoreId), { answer: newAnswer });
+      setQuestions(prev => prev.map(q =>
+        q.firestoreId === firestoreId ? { ...q, answer: newAnswer } : q
+      ));
+      setEditingAnswer(null);
+      showToast(`✅ Jawaban benar diubah ke ${String.fromCharCode(65 + newAnswer)}. ${options[newAnswer]}`, true);
+    } catch (e) {
+      showToast("❌ Gagal: " + e.message, false);
+    }
+    setSavingAnswer(null);
   };
 
   // ── File picked ───────────────────────────────────────────────
@@ -285,8 +304,10 @@ export default function AdminPage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.map((q) => {
-            const isEditing = editingType === q.firestoreId;
-            const isSaving  = savingType  === q.firestoreId;
+            const isEditing       = editingType   === q.firestoreId;
+            const isSaving        = savingType    === q.firestoreId;
+            const isEditingAnswer = editingAnswer === q.firestoreId;
+            const isSavingAnswer  = savingAnswer  === q.firestoreId;
             const typeColor = q.type === "safety" ? "#ef4444" : "#3b82f6";
 
             return (
@@ -376,19 +397,93 @@ export default function AdminPage() {
                       {q.question}
                     </div>
 
-                    {/* ── Pilihan jawaban ── */}
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                      {q.options?.map((opt, idx) => (
-                        <span key={idx} style={{
-                          fontSize: 11, padding: "2px 8px", borderRadius: 999,
-                          background: idx === q.answer ? "#166534" : "#1e293b",
-                          color: idx === q.answer ? "#4ade80" : "#64748b",
-                          border: `1px solid ${idx === q.answer ? "#4ade80" : "#334155"}`
-                        }}>
-                          {"ABCD"[idx]}. {opt}
-                        </span>
-                      ))}
-                    </div>
+                    {/* ── Pilihan jawaban + Edit jawaban ── */}
+                    {!isEditingAnswer ? (
+                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                        {q.options?.map((opt, idx) => (
+                          <span key={idx} style={{
+                            fontSize: 11, padding: "2px 8px", borderRadius: 999,
+                            background: idx === q.answer ? "#166534" : "#1e293b",
+                            color: idx === q.answer ? "#4ade80" : "#64748b",
+                            border: `1px solid ${idx === q.answer ? "#4ade80" : "#334155"}`
+                          }}>
+                            {"ABCD"[idx]}. {opt}
+                          </span>
+                        ))}
+                        <button
+                          onClick={() => { setEditingAnswer(q.firestoreId); setEditingType(null); }}
+                          style={{
+                            background: "#1e293b", border: "1px solid #334155",
+                            color: "#94a3b8", borderRadius: 6,
+                            padding: "2px 10px", fontSize: 11,
+                            cursor: "pointer", fontFamily: "inherit"
+                          }}
+                        >
+                          🔑 Edit jawaban
+                        </button>
+                      </div>
+                    ) : (
+                      /* ── Inline answer picker ── */
+                      <div style={{
+                        background: "#0c1526", border: "1px solid #334155",
+                        borderRadius: 8, padding: "10px 12px", marginTop: 4
+                      }}>
+                        <div style={{ color: "#94a3b8", fontSize: 11, marginBottom: 8 }}>
+                          Pilih jawaban yang <strong style={{ color: "#4ade80" }}>benar</strong>:
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {q.options?.map((opt, idx) => {
+                            const isCurrentAnswer = idx === q.answer;
+                            return (
+                              <button
+                                key={idx}
+                                disabled={isSavingAnswer || isCurrentAnswer}
+                                onClick={() => handleUpdateAnswer(q.firestoreId, idx, q.options)}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 8,
+                                  background: isCurrentAnswer ? "#166534" : "#1e293b",
+                                  border: `1.5px solid ${isCurrentAnswer ? "#4ade80" : "#334155"}`,
+                                  color: isCurrentAnswer ? "#4ade80" : "#e2e8f0",
+                                  borderRadius: 7, padding: "7px 12px",
+                                  fontSize: 12, cursor: isCurrentAnswer ? "default" : "pointer",
+                                  fontFamily: "inherit", textAlign: "left",
+                                  opacity: isSavingAnswer && !isCurrentAnswer ? 0.5 : 1,
+                                  transition: "all .15s"
+                                }}
+                              >
+                                <span style={{
+                                  width: 22, height: 22, borderRadius: "50%",
+                                  background: isCurrentAnswer ? "#4ade80" : "#334155",
+                                  color: isCurrentAnswer ? "#000" : "#94a3b8",
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  fontSize: 11, fontWeight: 700, flexShrink: 0
+                                }}>{"ABCD"[idx]}</span>
+                                {opt}
+                                {isCurrentAnswer && (
+                                  <span style={{ marginLeft: "auto", fontSize: 11, color: "#4ade80", fontWeight: 700 }}>
+                                    ✓ Jawaban sekarang
+                                  </span>
+                                )}
+                                {isSavingAnswer && !isCurrentAnswer && (
+                                  <span style={{ marginLeft: "auto", fontSize: 11, color: "#475569" }}>menyimpan...</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button
+                          onClick={() => setEditingAnswer(null)}
+                          disabled={isSavingAnswer}
+                          style={{
+                            marginTop: 8, background: "transparent", border: "none",
+                            color: "#475569", fontSize: 12,
+                            cursor: "pointer", fontFamily: "inherit"
+                          }}
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* ── Delete button ── */}
