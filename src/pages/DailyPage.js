@@ -377,18 +377,27 @@ export default function DailyPage({ user, profile }) {
     const q = dailyQs.current.teknis;
     const correct = chosen !== null && chosen === q.answer;
     const result = { questionId: q.firestoreId, chosen, correct, timeout: chosen === null };
-    const newResults = prev => {
+
+    // Update results state
+    setResults(prev => {
       const updated = [...prev, result];
-      // Save completed session to Firestore
-      setDoc(doc(db, "daily_answers", `${user.uid}_${todayStr()}`), {
-        userId: user.uid, userName: user.displayName,
-        userEmail: user.email, userPhoto: user.photoURL,
-        date: todayStr(), completed: true, results: updated,
-      }, { merge: true });
       return updated;
-    };
-    setResults(newResults);
+    });
+
+    // Save answer record
     await saveResult(result);
+
+    // Save completed session
+    await setDoc(doc(db, "daily_answers", `${user.uid}_${todayStr()}`), {
+      userId: user.uid,
+      userName: user.displayName,
+      userEmail: user.email,
+      userPhoto: user.photoURL,
+      date: todayStr(),
+      completed: true,
+    }, { merge: true });
+
+    // Move to briefing stage
     setStage(STAGE.BRIEFING);
   }, [saveResult, user]);
 
