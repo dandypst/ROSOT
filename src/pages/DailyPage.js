@@ -3,11 +3,12 @@ import { doc, getDoc, setDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { getDailyQuestionsForUser, todayStr } from "../utils/helpers";
 import { S } from "../styles";
+import BriefingPage from "./BriefingPage";
 
 const TIMER_SECONDS = 90;
 
 // ── Stage constants ────────────────────────────────────────────
-const STAGE = { READY: "ready", SAFETY: "safety", TEKNIS: "teknis", DONE: "done" };
+const STAGE = { READY: "ready", SAFETY: "safety", TEKNIS: "teknis", BRIEFING: "briefing", DONE: "done" };
 
 // ── Timer Ring ─────────────────────────────────────────────────
 function TimerRing({ seconds, total }) {
@@ -311,7 +312,7 @@ function ResultScreen({ results, questions }) {
 }
 
 // ── Main DailyPage ─────────────────────────────────────────────
-export default function DailyPage({ user }) {
+export default function DailyPage({ user, profile }) {
   const [questions, setQuestions] = useState([]);
   const [stage, setStage] = useState(STAGE.READY);
   const [results, setResults] = useState([]);
@@ -336,7 +337,9 @@ export default function DailyPage({ user }) {
       if (snap2.exists() && snap2.data().completed) {
         const saved = snap2.data().results || [];
         setResults(saved);
-        setStage(STAGE.DONE);
+        // Check briefing too
+        const bSnap = await getDoc(doc(db, "briefings", `${u.uid}_${todayStr()}`));
+        setStage(bSnap.exists() ? STAGE.DONE : STAGE.BRIEFING);
       }
       setLoading(false);
     };
@@ -386,7 +389,7 @@ export default function DailyPage({ user }) {
     };
     setResults(newResults);
     await saveResult(result);
-    setStage(STAGE.DONE);
+    setStage(STAGE.BRIEFING);
   }, [saveResult, user]);
 
   if (loading) return <div style={{ color: "#475569", padding: 40 }}>Memuat soal hari ini...</div>;
@@ -418,13 +421,15 @@ export default function DailyPage({ user }) {
             {stage === STAGE.SAFETY && <span>Soal 1 dari 2 — <span style={{ color: "#ef4444", fontWeight: 600 }}>Safety</span></span>}
             {stage === STAGE.TEKNIS && <span>Soal 2 dari 2 — <span style={{ color: "#3b82f6", fontWeight: 600 }}>Teknis</span></span>}
             {stage === STAGE.DONE && "Selesai untuk hari ini!"}
+            {stage === STAGE.BRIEFING && <span>Langkah 3 dari 3 — <span style={{ color: "#f59e0b", fontWeight: 600 }}>Briefing</span></span>}
           </div>
         </div>
         {/* Progress dots */}
-        {(stage === STAGE.SAFETY || stage === STAGE.TEKNIS) && (
+        {(stage === STAGE.SAFETY || stage === STAGE.TEKNIS || stage === STAGE.BRIEFING) && (
           <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
             <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444" }} />
-            <div style={{ width: 10, height: 10, borderRadius: "50%", background: stage === STAGE.TEKNIS ? "#3b82f6" : "#1e293b", border: "2px solid #334155" }} />
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: (stage === STAGE.TEKNIS || stage === STAGE.BRIEFING) ? "#3b82f6" : "#1e293b", border: "2px solid #334155" }} />
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: stage === STAGE.BRIEFING ? "#f59e0b" : "#1e293b", border: "2px solid #334155" }} />
           </div>
         )}
       </div>
@@ -450,6 +455,14 @@ export default function DailyPage({ user }) {
           stageLabel="⚙️ TEKNIS"
           stageColor="#3b82f6"
           onSubmit={handleTeknisSubmit}
+        />
+      )}
+
+      {stage === STAGE.BRIEFING && (
+        <BriefingPage
+          user={user}
+          profile={profile}
+          onComplete={() => setStage(STAGE.DONE)}
         />
       )}
 
