@@ -61,6 +61,7 @@ function ConfirmModal({ data, onConfirm, onCancel, loading }) {
           </button>
         </div>
       </div>
+    </> }
     </div>
   );
 }
@@ -73,6 +74,8 @@ export default function UsersPage() {
   const [search, setSearch]         = useState("");
   const [filterUpt, setFilterUpt]   = useState("all");
   const [filterStatus, setFilterStatus] = useState("all"); // all|active|blocked
+  const [tab, setTab]                   = useState("active"); // active|history
+  const [blockedHistory, setBlockedHistory] = useState([]); // all blocked_users docs
   const [confirm, setConfirm]       = useState(null);  // { action, user }
   const [processing, setProcessing] = useState(false);
   const [toast, setToast]           = useState(null);
@@ -90,6 +93,8 @@ export default function UsersPage() {
       setUsers(uSnap.docs.map(d => ({ firestoreId: d.id, ...d.data() }))
         .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")));
       setBlockedIds(new Set(bSnap.docs.map(d => d.id)));
+      setBlockedHistory(bSnap.docs.map(d => ({ uid: d.id, ...d.data() }))
+        .sort((a, b) => (b.blockedAt || "").localeCompare(a.blockedAt || "")));
     } catch (e) {
       showToast("Gagal memuat data: " + e.message, false);
     }
@@ -116,6 +121,7 @@ export default function UsersPage() {
       } else if (action === "unblock") {
         await deleteDoc(doc(db, "blocked_users", u.uid));
         setBlockedIds(prev => { const s = new Set(prev); s.delete(u.uid); return s; });
+        setBlockedHistory(prev => prev.filter(x => x.uid !== u.uid));
         showToast(`${u.nama || u.email} berhasil dibuka blokirnya.`, true);
 
       } else if (action === "delete") {
@@ -187,6 +193,64 @@ export default function UsersPage() {
         <button onClick={loadData} style={{ ...S.btnGhost, marginLeft:"auto", fontSize:12 }}>🔄 Refresh</button>
       </div>
 
+      {/* Tab navigation */}
+      <div style={{ display:"flex", gap:0, marginBottom:20, borderBottom:"1px solid var(--border)" }}>
+        {[
+          { key:"active",  label:"👥 User Aktif & Diblokir" },
+          { key:"history", label:"🕓 History Blokir" },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} style={{
+            padding:"10px 18px", border:"none", background:"transparent",
+            cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:600,
+            color: tab === t.key ? "#f59e0b" : "var(--textMuted)",
+            borderBottom: `2px solid ${tab === t.key ? "#f59e0b" : "transparent"}`,
+            marginBottom: -1
+          }}>{t.label}</button>
+        ))}
+      </div>
+
+      {/* ── History Blokir Tab ── */}
+      {tab === "history" && (
+        <div>
+          <div style={{ color:"var(--textMuted)", fontSize:13, marginBottom:14 }}>
+            Semua akun yang pernah diblokir — termasuk yang sudah dihapus datanya. Klik <strong style={{ color:"#4ade80" }}>Buka Blokir</strong> untuk mengaktifkan kembali.
+          </div>
+          {blockedHistory.length === 0 && (
+            <div style={{ color:"var(--textMuted)", fontSize:14, textAlign:"center", padding:"40px 0" }}>Belum ada riwayat pemblokiran.</div>
+          )}
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {blockedHistory.map((b, i) => (
+              <div key={i} style={{ ...S.card, padding:"14px 16px", display:"flex", alignItems:"center", gap:12, borderLeft:"4px solid #f87171" }}>
+                <div style={{ width:42, height:42, borderRadius:"50%", background:"var(--bgInput)", color:"#f87171", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:18, flexShrink:0, border:"2px solid #7f1d1d" }}>
+                  🚫
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ color:"var(--textPrimary)", fontWeight:600, fontSize:14, marginBottom:2 }}>
+                    {b.nama || <span style={{ color:"var(--textMuted)", fontStyle:"italic" }}>Nama tidak tersedia</span>}
+                  </div>
+                  <div style={{ color:"var(--textMuted)", fontSize:12, marginBottom:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{b.email}</div>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    {b.upt && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:999, background:"#1e3a5f", color:"#60a5fa", border:"1px solid #1e40af" }}>{b.upt}</span>}
+                    <span style={{ fontSize:10, color:"#f87171" }}>
+                      Diblokir: {b.blockedAt ? new Date(b.blockedAt).toLocaleDateString("id-ID", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "-"}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setConfirm({ action:"unblock", user: { uid: b.uid, nama: b.nama, email: b.email, upt: b.upt } })}
+                  style={{ background:"#14532d22", border:"1px solid #14532d", color:"#4ade80", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, transition:"all .15s" }}
+                  onMouseEnter={e => { e.currentTarget.style.background="#14532d"; e.currentTarget.style.color="#fff"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background="#14532d22"; e.currentTarget.style.color="#4ade80"; }}
+                >
+                  ✅ Buka Blokir
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === "active" && <>
       {/* Stats */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
         {[
