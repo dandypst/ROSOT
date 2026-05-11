@@ -28,7 +28,8 @@ export async function exportExcel(ujianRecords, briefingRecords, upt, dateFrom="
   const wb = XLSX.utils.book_new();
 
   const ujianF  = filterRecords(ujianRecords, upt, dateFrom, dateTo);
-  const briefF  = filterRecords(briefingRecords, upt, dateFrom, dateTo);
+  // Only include PIC briefings in export (exclude non-PIC / skipped)
+  const briefF  = filterRecords(briefingRecords, upt, dateFrom, dateTo).filter(r => r.isPIC === true && !r.skipped);
 
   // ── Sheet 1: Hasil Ujian ──────────────────────────────────────
   const ujianRows = ujianF.map(r => ({
