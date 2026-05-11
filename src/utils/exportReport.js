@@ -54,8 +54,9 @@ export async function exportExcel(ujianRecords, briefingRecords, upt, dateFrom="
     "Nama Peserta":      r.userName || "-",
     "UPT":               r.upt || "-",
     "Email":             r.userEmail || "-",
-    "Nama Pemberi":      r.namaPemberi || "-",
-    "Catatan Briefing":  r.catatan || "-",
+    "Peran":             r.isPIC ? "PIC Shift" : "Bukan PIC",
+    "Nama Pemberi":      r.namaPemberi || (r.skipped ? "(Bukan PIC — diisi PIC lain)" : "-"),
+    "Catatan Briefing":  r.catatan || (r.skipped ? "(Bukan PIC — tidak mengisi)" : "-"),
     "Ada Foto":          r.foto ? `Ya (lihat sheet Foto Briefing baris ${idx + 2})` : "Tidak",
     "Waktu":             r.timestamp ? fmtDate(r.timestamp) : "-",
   }));
@@ -175,22 +176,23 @@ export async function exportPDF(ujianRecords, briefingRecords, upt, dateFrom="",
   addHeader("Laporan Briefing Harian");
   autoTable(doc, {
     startY: 36,
-    head: [["No","Tanggal","Nama Peserta","UPT","Pemberi Briefing","Catatan Briefing","Foto"]],
+    head: [["No","Tanggal","Nama Peserta","UPT","Peran","Pemberi Briefing","Catatan Briefing","Foto"]],
     body: briefF.length ? briefF.map((r, i) => [
       i+1,
       r.date||"-",
       r.userName||"-",
       (r.upt||"-").replace("UPT ",""),
-      r.namaPemberi||"-",
-      (r.catatan||"-").substring(0,110)+(r.catatan?.length>110?"...":""),
+      r.isPIC ? "PIC" : "Bukan PIC",
+      r.namaPemberi||(r.skipped?"(Bukan PIC)":"-"),
+      r.skipped ? "(Bukan PIC — tidak mengisi)" : (r.catatan||"-").substring(0,100)+(r.catatan?.length>100?"...":""),
       r.foto ? `Ada (hal. ${3+i})` : "Tidak",
-    ]) : [["","Belum ada data","","","","",""]],
+    ]) : [["","Belum ada data","","","","","",""]],
     styles: { fontSize: 7.5, cellPadding: 2.5 },
     headStyles: { fillColor:[160,21,48], textColor:255, fontStyle:"bold" },
     alternateRowStyles: { fillColor:[248,248,248] },
     columnStyles: {
-      0:{cellWidth:8,halign:"center"},1:{cellWidth:22},2:{cellWidth:32},
-      3:{cellWidth:22},4:{cellWidth:32},5:{cellWidth:140},6:{cellWidth:25}
+      0:{cellWidth:8,halign:"center"},1:{cellWidth:20},2:{cellWidth:28},
+      3:{cellWidth:20},4:{cellWidth:18},5:{cellWidth:28},5:{cellWidth:28},6:{cellWidth:115},7:{cellWidth:20}
     },
   });
 
